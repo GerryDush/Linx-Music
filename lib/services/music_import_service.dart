@@ -14,6 +14,10 @@ import 'dart:async';
 import '../widgets/lyric/lyrics_parser.dart';
 import '../utils/cover_utils.dart';
 import 'package:image/image.dart' as img;
+import 'package:http/http.dart' as http;
+import 'package:lzf_music/services/http_service.dart';
+import 'package:saf_util/saf_util.dart';
+import 'package:saf_stream/saf_stream.dart';
 
 class CoverImage {
   final Uint8List bytes;
@@ -71,7 +75,7 @@ class ScaningEvent extends ImportEvent {
 
 class ScanCompletedEvent extends ImportEvent {
   final int count;
-  final List<File> musicFiles;
+  final List<String> musicFiles;
   ScanCompletedEvent(this.count, [this.musicFiles = const []]);
 }
 
@@ -112,10 +116,16 @@ class MusicImportService {
     _isCancelled = false;
 
     try {
-      final dir = await FilePicker.platform.getDirectoryPath(
-        lockParentWindow: true,
-      );
-
+      String? dir = null;
+      if (PlatformUtils.isIOS) {
+        IOSNativePickedFile? pickedDir =
+            await FileAccessManager.pickFolderNative();
+        if (pickedDir == null) return;
+        dir = pickedDir.path;
+      } else {
+        dir =
+            await FilePicker.platform.getDirectoryPath(lockParentWindow: true);
+      }
       if (dir == null) return;
 
       yield const SelectedEvent();
@@ -125,7 +135,7 @@ class MusicImportService {
         return;
       }
 
-      List<File> musicFiles = [];
+      List<String> filePaths = [];
 
       // 监听扫描事件并转发
       final scanStream = _listMusicFiles(Directory(dir));
@@ -133,7 +143,7 @@ class MusicImportService {
         if (event is ScaningEvent) {
           yield event; // 转发扫描事件
         } else if (event is ScanCompletedEvent) {
-          musicFiles = event.musicFiles;
+          filePaths = event.musicFiles;
           yield event;
           break;
         } else if (event is FailedEvent) {
@@ -142,78 +152,54 @@ class MusicImportService {
         }
       }
 
-      if (musicFiles.isEmpty) {
+      if (filePaths.isEmpty) {
         yield const FailedEvent('未找到支持的音乐文件');
         yield const CompletedEvent();
         return;
       }
 
-      yield* _processFiles(musicFiles);
+      yield* _processFiles(filePaths);
     } catch (e) {
       yield FailedEvent('选择文件夹时发生错误: ${e.toString()}');
       yield const CompletedEvent();
     }
   }
 
-  
-
   Stream<ImportEvent> importFiles() async* {
     _isCancelled = false;
 
+    List<String> filePaths = [];
     try {
       // ================= iOS 原生流程 =================
       if (PlatformUtils.isIOS) {
-        // 1. 调用原生选择器，直接获取路径和书签
-        final nativeFiles = await FileAccessManager.pickMusicNative();
-        
-        // 如果未选择或取消
+        List<IOSNativePickedFile> nativeFiles =
+            await FileAccessManager.pickMusicNative(
+                extensions: supportedExtensions);
         if (nativeFiles.isEmpty) return;
-
-        yield const SelectedEvent();
-
-        if (_isCancelled) {
-          yield const CancelledEvent();
-          return;
-        }
-
-        yield ScanCompletedEvent(nativeFiles.length);
-
-        // 2. 处理 iOS 文件列表
-        int processed = 0;
-        for (var item in nativeFiles) {
-          if (_isCancelled) break;
-          
-          String? path = item['path']!;
-          final String bookmark = item['bookmark']!;
-          final String fileName = p.basename(path);
-          
-          yield ProgressingEvent(fileName, processed, nativeFiles.length);
-
-          try {
-            // 关键：传入原生生成的书签
-            path = await FileAccessManager.startAccessing(bookmark);
-            await _processMusicFile(File(path!));
-            await FileAccessManager.stopAccessing(bookmark);
-            processed++;
-            yield ProgressingEvent(fileName, processed, nativeFiles.length);
-          } catch (e) {
-            yield FailedEvent(e.toString(), filePath: path);
-          }
-        }
-        
-        yield const CompletedEvent();
-        return; // iOS 流程结束
+        filePaths = nativeFiles
+            .where((file) => !file.isDirectory)
+            .map((file) => file.path!)
+            .toList();
+      } else if (PlatformUtils.isAndroid) {
+        // ================= Android SAF 流程 =================
+        final safFiles = await SafUtil().pickFiles();
+        if (safFiles == null || safFiles.isEmpty) return;
+        filePaths = safFiles.map((file) => file.uri).toList();
+      } else {
+        final files = await FilePicker.platform.pickFiles(
+          allowedExtensions: supportedExtensions,
+          type: FileType.custom,
+          allowMultiple: true,
+          lockParentWindow: true,
+          withData: false,
+          withReadStream: false,
+        );
+        if (files == null || files.files.isEmpty) return;
+        filePaths = files.files
+            .where((file) => file.path != null)
+            .map((file) => file.path!)
+            .toList();
       }
-
-      // ================= Android / Desktop 流程 (FilePicker) =================
-      final result = await FilePicker.platform.pickFiles(
-        allowedExtensions: supportedExtensions,
-        type: FileType.custom,
-        allowMultiple: true,
-        lockParentWindow: true,
-      );
-
-      if (result == null) return;
 
       yield const SelectedEvent();
 
@@ -222,22 +208,16 @@ class MusicImportService {
         return;
       }
 
-      final musicFiles = result.files
-          .where((file) => file.path != null)
-          .map((file) => File(file.path!))
-          .toList();
+      yield ScanCompletedEvent(filePaths.length);
 
-      yield ScanCompletedEvent(musicFiles.length);
-
-      if (musicFiles.isEmpty) {
+      if (filePaths.isEmpty) {
         yield const FailedEvent('未选择有效的音乐文件');
         yield const CompletedEvent();
         return;
       }
 
       // 通用处理流程
-      yield* _processFiles(musicFiles);
-      
+      yield* _processFiles(filePaths);
     } catch (e) {
       yield FailedEvent('选择文件时发生错误: ${e.toString()}');
       yield const CompletedEvent();
@@ -331,7 +311,7 @@ class MusicImportService {
   }
 
   Stream<ImportEvent> _listMusicFiles(Directory dir) async* {
-    final List<File> musicFiles = [];
+    final List<String> filePaths = [];
 
     try {
       await for (final entity in dir.list(recursive: true)) {
@@ -343,36 +323,41 @@ class MusicImportService {
         if (entity is File) {
           final extension = p.extension(entity.path).toLowerCase();
           if (supportedExtensions.contains(extension.replaceFirst('.', ''))) {
-            musicFiles.add(entity);
+            filePaths.add(entity.path);
           }
-          yield ScaningEvent(musicFiles.length);
+          yield ScaningEvent(filePaths.length);
         }
       }
 
-      yield ScanCompletedEvent(musicFiles.length, musicFiles);
+      yield ScanCompletedEvent(filePaths.length, filePaths);
     } catch (e) {
       yield FailedEvent('扫描目录失败: ${e.toString()}');
     }
   }
 
   /// 处理文件列表的Stream
-  Stream<ImportEvent> _processFiles(List<File> musicFiles) async* {
+  Stream<ImportEvent> _processFiles(List<String> filePaths) async* {
     int processed = 0;
 
-    for (final file in musicFiles) {
+    for (final filePath in filePaths) {
       if (_isCancelled) {
         yield const CancelledEvent();
         return;
       }
-      final fileName = p.basename(file.path);
-      yield ProgressingEvent(fileName, processed, musicFiles.length);
+      final fileName;
+      if (Platform.isAndroid) {
+        fileName = p.basename(Uri.decodeFull(filePath));
+      } else {
+        fileName = p.basename(filePath);
+      }
+      yield ProgressingEvent(fileName, processed, filePaths.length);
 
       try {
-        await _processMusicFile(file);
+        await _processMusicFile(filePath);
         processed++;
-        yield ProgressingEvent(fileName, processed, musicFiles.length);
+        yield ProgressingEvent(fileName, processed, filePaths.length);
       } catch (e) {
-        yield FailedEvent(e.toString(), filePath: file.path);
+        yield FailedEvent(e.toString(), filePath: filePath);
         continue;
       }
     }
@@ -404,14 +389,13 @@ class MusicImportService {
     }
     late final String ext;
     if (decoder is img.PngDecoder) ext = 'png';
-    if (decoder is img.JpegDecoder) ext =  'jpg';
-    if (decoder is img.GifDecoder) ext =  'gif';
-    if (decoder is img.WebPDecoder) ext =  'webp';
-    if (decoder is img.BmpDecoder) ext =  'bmp';
-    if (decoder is img.TiffDecoder) ext =  'tiff';
-    if (decoder is img.IcoDecoder) ext =  'ico';
-    if (decoder is img.TgaDecoder) ext =  'tga';
-    
+    if (decoder is img.JpegDecoder) ext = 'jpg';
+    if (decoder is img.GifDecoder) ext = 'gif';
+    if (decoder is img.WebPDecoder) ext = 'webp';
+    if (decoder is img.BmpDecoder) ext = 'bmp';
+    if (decoder is img.TiffDecoder) ext = 'tiff';
+    if (decoder is img.IcoDecoder) ext = 'ico';
+    if (decoder is img.TgaDecoder) ext = 'tga';
 
     // 生成缩略图（CPU 密集）
     final thumbBytes = createThumbnail(input.bytes);
@@ -440,11 +424,25 @@ class MusicImportService {
     }
   }
 
-  Future<void> _processMusicFile(File file) async {
-    final metadata = await readMetadata(file, getImage: true);
-    final String title = metadata.title ?? p.basename(file.path);
+  Future<void> _processMusicFile(String filePath) async {
+    String originalFilePath = filePath;
+    if (PlatformUtils.isMacOS || PlatformUtils.isIOS) {
+      filePath = (await FileAccessManager.createBookmark(filePath))!;
+      originalFilePath = (await FileAccessManager.startAccessing(filePath))!;
+    }
+    AudioMetadata metadata;
+    if (Platform.isAndroid) {
+      Stream<Uint8List> fileBytes =
+          await SafStream().readFileStream(originalFilePath);
+      metadata = await readMetadataUint8List(fileBytes, getImage: true);
+    } else {
+      metadata = await readMetadataFile(File(originalFilePath), getImage: true);
+    }
+    if (PlatformUtils.isMacOS || PlatformUtils.isIOS) {
+      await FileAccessManager.stopAccessing(filePath);
+    }
+    final String title = metadata.title ?? p.basename(filePath);
     final String? artist = metadata.artist;
-
     final existingSongs = await (MusicDatabase.database.songs.select()
           ..where(
             (tbl) =>
@@ -457,25 +455,6 @@ class MusicImportService {
 
     if (existingSongs.isNotEmpty) return;
 
-    final basePath = await CommonUtils.getAppBaseDirectory();
-
-    String targetFilePath = file.path;
-
-    if (PlatformUtils.isMacOS || PlatformUtils.isIOS) {
-      targetFilePath =
-          await FileAccessManager.createBookmark(file.path) ?? file.path;
-    } else if (PlatformUtils.isAndroid) {
-      final targetDir = Directory(
-        p.join(basePath, 'Music', artist ?? 'Unknown'),
-      );
-      await targetDir.create(recursive: true);
-
-      targetFilePath =
-          p.join(targetDir.path, '$title${p.extension(file.path)}');
-
-      await file.copy(targetFilePath);
-    }
-
     String? albumArtPath;
     String? albumArtThumbPath;
     List<Color>? palette;
@@ -485,12 +464,13 @@ class MusicImportService {
 
       final coverResult = await _processCover(picture.bytes);
       if (coverResult != null) {
-        coverResult.palette = await PaletteUtils.fromBytes(coverResult.thumbBytes);
+        coverResult.palette =
+            await PaletteUtils.fromBytes(coverResult.thumbBytes);
       }
 
       if (coverResult != null) {
+        final basePath = await CommonUtils.getAppBaseDirectory();
         final fileName = '${coverResult.md5}.${coverResult.ext}';
-
         final coverFile = File(p.join(basePath, 'Cover', fileName));
         final thumbFile = File(p.join(basePath, 'Cover', 'thumb', fileName));
 
@@ -516,7 +496,7 @@ class MusicImportService {
         title: title,
         artist: Value(artist),
         album: Value(metadata.album),
-        filePath: targetFilePath,
+        filePath: filePath,
         lyrics: Value(metadata.lyrics),
         bitrate: Value(metadata.bitrate),
         sampleRate: Value(metadata.sampleRate),

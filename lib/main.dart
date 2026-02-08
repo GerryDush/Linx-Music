@@ -15,6 +15,7 @@ import './utils/platform_utils.dart';
 import '../utils/native_tab_bar_utils.dart';
 import 'package:flutter_localization/flutter_localization.dart';
 import './i18n/i18n.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 
 class GlobalRouteObserver extends NavigatorObserver {
   void _printRoute(Route<dynamic> route, String action) {
@@ -96,7 +97,7 @@ class _MainAppState extends State<MainApp> with DesktopWindowMixin {
   final FlutterLocalization _localization = FlutterLocalization.instance;
   @override
   void initState() {
-     _localization.init(
+    _localization.init(
       mapLocales: [
         const MapLocale(
           'en',
@@ -128,8 +129,6 @@ class _MainAppState extends State<MainApp> with DesktopWindowMixin {
 
   @override
   Widget build(BuildContext context) {
-   
-
     return Consumer<AppThemeProvider>(
       builder: (context, themeProvider, child) {
         return MyKeyboardHandler(
@@ -155,8 +154,15 @@ class _MainAppState extends State<MainApp> with DesktopWindowMixin {
     );
   }
 
-  void _onTranslatedLanguage(Locale? locale) {
+  void _onTranslatedLanguage(Locale? locale) async {
+     DisplayMode m = await FlutterDisplayMode.active;
+    print('默认：$m');
+    final modes = await FlutterDisplayMode.supported;
+    modes.forEach(print);
+    await FlutterDisplayMode.setHighRefreshRate();
     print('语言已切换至: ${locale?.languageCode}');
+    m = await FlutterDisplayMode.active;
+    print('切换至： $m');
     setState(() {});
   }
 }

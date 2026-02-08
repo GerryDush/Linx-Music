@@ -1,7 +1,7 @@
 name: lzf_music
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.3.8
+version: 0.3.9
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -16,7 +16,7 @@ dependencies:
   audio_metadata_reader:
     git:
       url: https://github.com/GerryDush/audio_metadata_reader.git
-      ref: v0.0.6
+      ref: v0.0.9
   path_provider: ^2.1.2
   provider: ^6.1.5
   media_kit: ^1.1.11
@@ -44,6 +44,13 @@ dependencies:
   oklch: ^0.0.3
   flutter_svg: ^2.0.0
   cupertino_icons: ^1.0.8
+  saf_stream: ^0.12.3
+  saf_util:
+    git:
+      url: https://github.com/GerryDush/saf_util.git
+      ref: v0.0.2
+  http: ^0.13.6
+  flutter_displaymode: ^0.7.0
 
 dev_dependencies:
   flutter_test:

@@ -43,7 +43,6 @@ class _HomePageMobileState extends State<HomePageMobile> {
           light: Colors.black,
           dark: Colors.white,
         );
-        Color sidebarBg = ThemeUtils.backgroundColor(context);
         Color bodyBg = ThemeUtils.backgroundColor(context);
 
         NativeTabBarController.setEventHandler(onTabSelected: (index) {

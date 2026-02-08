@@ -33,6 +33,7 @@ class SettingsPageState extends State<SettingsPage> with ShowAwarePage {
 
   @override
   Widget build(BuildContext context) {
+    final topSafeArea = MediaQuery.of(context).padding.top;
     return Consumer<AppThemeProvider>(
       builder: (context, themeProvider, child) {
         return ThemedBackground(
@@ -43,8 +44,8 @@ class SettingsPageState extends State<SettingsPage> with ShowAwarePage {
                   padding: EdgeInsets.fromLTRB(
                     4,
                     CommonUtils.select(theme.isFloat,
-                        t: CommonUtils.select(PlatformUtils.isIOS,
-                            t: 120, f: 70),
+                        t: CommonUtils.select(PlatformUtils.isMobile,
+                            t: topSafeArea + 44, f: 70),
                         f: 80),
                     4,
                     CommonUtils.select(theme.isFloat, t: 0, f: 90),

@@ -116,6 +116,7 @@ class _MusicListViewState extends State<MusicListView> {
 
   @override
   Widget build(BuildContext context) {
+    final topSafeArea = MediaQuery.of(context).padding.top;
     return ThemedBackground(
       builder: (context, theme) {
         return NotificationListener<ScrollNotification>(
@@ -146,7 +147,7 @@ class _MusicListViewState extends State<MusicListView> {
                 child: SizedBox(
                   height: CommonUtils.select(
                     theme.isFloat,
-                    t: PlatformUtils.select(desktop: 110, mobile: 144),
+                    t: PlatformUtils.select(desktop: 110, mobile: topSafeArea+100),
                     f: 0,
                   ),
                 ), // 标题栏高度

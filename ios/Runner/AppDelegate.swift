@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UniformTypeIdentifiers // 必须引入，用于 UTType
+import MobileCoreServices // 用于 iOS < 14 时的 UTI 映射
 
 // 统一管理常量
 struct Channels {
@@ -10,8 +11,8 @@ struct Channels {
 }
 
 struct Methods {
-    // 新增 pickMusic 方法
-    static let pickMusic = "pickMusic"
+    // 新增 pickFile 方法
+    static let pickFile = "pickFile"
     // 原有的方法
     static let createBookmark = "createBookmark" // 仅作兼容保留
     static let startAccessing = "startAccessing"
@@ -220,12 +221,14 @@ extension AppDelegate {
         
         switch call.method {
         // 新增：调用原生文件选择器
-        case Methods.pickMusic:
+        case Methods.pickFile:
+            let exts = args?["extensions"] as? [String] ?? []
+            let allowFolders = args?["allowFolders"] as? Bool ?? false
             self.pickerResult = result
-            openDocumentPicker()
+            openDocumentPicker(allowedExtensions: exts, allowFolders: allowFolders)
             
         case Methods.createBookmark:
-            // 注意：如果使用 pickMusic，这个方法通常不再被调用，但保留做兼容
+            // 注意：如果使用 pickFile，这个方法通常不再被调用，但保留做兼容
             guard let path = args?["path"] as? String else {
                 result(FlutterError(code: "INVALID_ARGS", message: "Path required", details: nil))
                 return
@@ -252,29 +255,63 @@ extension AppDelegate {
         }
     }
     
-    // --- 原生文件选择器逻辑 (解决重启丢失问题的关键) ---
-    
-    // --- 原生文件选择器逻辑 ---
-    
-    private func openDocumentPicker() {
+    private func openDocumentPicker(allowedExtensions: [String] = [], allowFolders: Bool = false) {
         let picker: UIDocumentPickerViewController
-        
+
         if #available(iOS 14.0, *) {
             // iOS 14+ : 使用 UTType 和新构造函数
-            let types: [UTType] = [.audio, .folder]
+            var types: [UTType] = []
+
+            if !allowedExtensions.isEmpty {
+                for ext in allowedExtensions {
+                    if let ut = UTType(filenameExtension: ext) {
+                        types.append(ut)
+                    } else if let ut = UTType.types(tag: ext, tagClass: .filenameExtension, conformingTo: nil).first {
+                        types.append(ut)
+                    }
+                }
+            }
+
+            if allowFolders {
+                types.append(.folder)
+            }
+
+            if types.isEmpty {
+                types = [.audio]
+                if allowFolders { types.append(.folder) }
+            }
+
             picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
         } else {
-            // iOS 14 以下 : 使用字符串常量
-            // "public.audio" 对应音频, "public.folder" 对应文件夹
-            let types = ["public.audio", "public.folder"]
+            // iOS 14 以下 : 使用字符串常量/UTI
+            var types: [String] = []
+
+            if !allowedExtensions.isEmpty {
+                for ext in allowedExtensions {
+                    if let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext as CFString, nil)?.takeRetainedValue() {
+                        types.append(uti as String)
+                    }
+                }
+            }
+
+            if allowFolders && !types.contains("public.folder") {
+                types.append("public.folder")
+            }
+
+            if types.isEmpty {
+                types = ["public.audio"]
+                if allowFolders { types.append("public.folder") }
+            }
+
             // .open 模式等同于 asCopy: false (获取原始引用，不复制)
             picker = UIDocumentPickerViewController(documentTypes: types, in: .open)
         }
-        
+
         picker.delegate = self
-        picker.allowsMultipleSelection = true
+        // 如果选择的是文件夹，则只允许单选
+        picker.allowsMultipleSelection = !allowFolders
         picker.modalPresentationStyle = .formSheet
-        
+
         if let root = window?.rootViewController {
             root.present(picker, animated: true, completion: nil)
         } else {
@@ -285,37 +322,30 @@ extension AppDelegate {
     
     // UIDocumentPickerDelegate 回调
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        var results = [[String: String]]()
-        
+        var results = [[String: Any]]()
+
         for url in urls {
-            // 1. 立即开启权限
-            let shouldStopAccessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if shouldStopAccessing {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            
             do {
-                // 2. 立即创建书签 (使用空选项 [] 以包含完整安全信息)
-                let bookmarkData = try url.bookmarkData(
-                    options: [],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
-                let base64 = bookmarkData.base64EncodedString()
-                
-                // 3. 返回路径和书签
+                let resourceValues = try url.resourceValues(forKeys: [.isDirectoryKey, .nameKey])
+                let isDir = resourceValues.isDirectory ?? false
+                let name = resourceValues.name ?? url.lastPathComponent
+
                 results.append([
                     "path": url.path,
-                    "bookmark": base64
+                    "isDirectory": isDir,
+                    "name": name
                 ])
-                print("✅ [NativePicker] Bookmarked: \(url.path)")
+                print("✅ [NativePicker] Selected: \(url.path) (dir: \(isDir))")
             } catch {
-                print("❌ [NativePicker] Error: \(error)")
+                print("❌ [NativePicker] Error reading resourceValues: \(error)")
+                // 回退：仍然返回路径
+                results.append([
+                    "path": url.path,
+                    "name": url.lastPathComponent
+                ])
             }
         }
-        
+
         pickerResult?(results)
         pickerResult = nil
     }

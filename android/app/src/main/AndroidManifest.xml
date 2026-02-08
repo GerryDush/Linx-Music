@@ -18,6 +18,7 @@
         android:name="${applicationName}" 
         android:label="Linx Music"
         android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"
         android:enableOnBackInvokedCallback="true">
 
         <!-- MainActivity -->
