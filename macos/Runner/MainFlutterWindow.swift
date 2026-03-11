@@ -9,15 +9,9 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
-    // 隐藏标题栏，全屏内容
-    self.titlebarAppearsTransparent = true
-    self.titleVisibility = .hidden
-    self.styleMask.insert(.fullSizeContentView)
-    
-    // 移除 toolbar，避免占用顶部空间
-    // let toolbar = NSToolbar(identifier: "MainToolbar")
-    // toolbar.showsBaselineSeparator = false
-    // self.toolbar = toolbar
+    let toolbar = NSToolbar(identifier: "MainToolbar")
+    toolbar.showsBaselineSeparator = false
+    self.toolbar = toolbar
 
     let bookmarkChannel = FlutterMethodChannel(name: "com.lzf_music/secure_bookmarks",
                                                    binaryMessenger: flutterViewController.engine.binaryMessenger)
@@ -29,7 +23,30 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     super.awakeFromNib()
+    NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleEnterFullScreen),
+        name: NSWindow.willEnterFullScreenNotification,
+        object: self
+    )
+    NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleExitFullScreen),
+        name: NSWindow.willExitFullScreenNotification,
+        object: self
+    )
   }
+  @objc func handleEnterFullScreen() {
+        self.toolbar = nil
+ }
+
+    @objc func handleExitFullScreen() {
+    DispatchQueue.main.async {
+        let toolbar = NSToolbar(identifier: "MainToolbar")
+        toolbar.showsBaselineSeparator = false
+        self.toolbar = toolbar
+    }
+}
 
   
     private func handleBookmarkCall(call: FlutterMethodCall, result: @escaping FlutterResult) {
