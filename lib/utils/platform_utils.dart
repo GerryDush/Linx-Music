@@ -29,17 +29,11 @@ class PlatformUtils {
     return shortestSide >= 600; // iPad的最短边通常>=768，这里用600作为安全阈值
   }
 
-  static String getFontFamily() {
+  static String? getFontFamily() {
     if (Platform.isWindows) {
       return 'Microsoft YaHei';
-    } else if (Platform.isAndroid) {
-      return 'Roboto';
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      return 'SF Pro Display';
-    } else if (Platform.isLinux) {
-      return 'Ubuntu';
     }
-    return 'sans-serif'; // fallback
+    return null; // fallback
   }
 
   static T select<T>({required T desktop, required T mobile}) {
