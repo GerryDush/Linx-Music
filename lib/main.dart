@@ -141,7 +141,9 @@ class _MainAppState extends State<MainApp> with DesktopWindowMixin {
           child: MaterialApp(
             supportedLocales: _localization.supportedLocales,
             localizationsDelegates: _localization.localizationsDelegates,
-            color: Colors.transparent,
+            color: PlatformUtils.isLinux
+                ? ThemeUtils.darkBg
+                : Colors.transparent,
             title: 'Linx Music',
             theme: themeProvider.buildLightTheme(),
             darkTheme: themeProvider.buildDarkTheme(),

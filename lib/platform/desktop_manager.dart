@@ -10,6 +10,7 @@ import 'dart:ui';
 
 class DesktopManager {
   static State? _currentState;
+  static const Color _linuxWindowBackground = ThemeUtils.darkBg;
 
   static Future<void> initialize() async {
     if (!PlatformUtils.isDesktop) return;
@@ -18,22 +19,27 @@ class DesktopManager {
       await windowManager.ensureInitialized();
       await Window.initialize();
 
-      const WindowOptions windowOptions = WindowOptions(
+      final windowOptions = WindowOptions(
         size: Size(1080, 720),
         minimumSize: Size(360, 660),
         center: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor:
+            PlatformUtils.isLinux ? _linuxWindowBackground : Colors.transparent,
         skipTaskbar: false,
         titleBarStyle: TitleBarStyle.hidden,
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
-        await windowManager.setBackgroundColor(Colors.transparent);
+        await windowManager.setBackgroundColor(
+          PlatformUtils.isLinux ? _linuxWindowBackground : Colors.transparent,
+        );
         await windowManager.setPreventClose(true);
         await windowManager.show();
         await windowManager.focus();
 
-        await windowManager.setBackgroundColor(Colors.transparent);
+        await windowManager.setBackgroundColor(
+          PlatformUtils.isLinux ? _linuxWindowBackground : Colors.transparent,
+        );
         if (Platform.isMacOS) {
           await Window.setEffect(
             effect: WindowEffect.hudWindow,

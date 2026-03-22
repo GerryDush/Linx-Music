@@ -27,6 +27,8 @@ class AppThemeProvider extends ChangeNotifier {
   String get opacityTarget => _opacityTarget;
   bool get sidebarIsExtended => _sidebarIsExtended;
 
+  bool get _useTransparentDesktopChrome => !PlatformUtils.isLinux;
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
@@ -140,10 +142,12 @@ class AppThemeProvider extends ChangeNotifier {
         brightness: Brightness.light,
       ),
       useMaterial3: true,
-      scaffoldBackgroundColor: Colors.transparent,
+      scaffoldBackgroundColor:
+          _useTransparentDesktopChrome ? Colors.transparent : ThemeUtils.lightBg,
       appBarTheme: AppBarTheme(
         systemOverlayStyle: SystemUiOverlayStyle.dark,
-        backgroundColor: Colors.transparent,
+        backgroundColor:
+            _useTransparentDesktopChrome ? Colors.transparent : ThemeUtils.lightBg,
         elevation: 0,
         toolbarHeight: PlatformUtils.isDesktopNotMac ? 56 : null,
         surfaceTintColor: Colors.transparent,
@@ -166,10 +170,12 @@ class AppThemeProvider extends ChangeNotifier {
         brightness: Brightness.dark,
       ),
       useMaterial3: true,
-      scaffoldBackgroundColor: Colors.transparent,
+      scaffoldBackgroundColor:
+          _useTransparentDesktopChrome ? Colors.transparent : ThemeUtils.darkBg,
       appBarTheme: AppBarTheme(
         systemOverlayStyle: SystemUiOverlayStyle.light,
-        backgroundColor: Colors.transparent,
+        backgroundColor:
+            _useTransparentDesktopChrome ? Colors.transparent : ThemeUtils.darkBg,
         elevation: 0,
         toolbarHeight: PlatformUtils.isDesktop ? 56 : null,
         surfaceTintColor: Colors.transparent,
