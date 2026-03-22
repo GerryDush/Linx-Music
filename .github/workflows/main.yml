@@ -291,20 +291,18 @@ jobs:
           VERSION=${{ steps.get_version.outputs.version }}
           mkdir -p dist_linux
 
-          fastforge package --platform linux --targets appimage,deb,rpm
+          fastforge package --platform linux --targets deb,rpm
 
           SRC_DIR="dist/$VERSION"
-          APPIMAGE_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -iname "*.appimage" | head -n 1)
           DEB_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -name "*.deb" | head -n 1)
           RPM_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -name "*.rpm" | head -n 1)
 
-          if [[ -z "$APPIMAGE_SRC" || -z "$DEB_SRC" || -z "$RPM_SRC" ]]; then
+          if [[ -z "$DEB_SRC" || -z "$RPM_SRC" ]]; then
             echo "Expected Linux packages were not all generated."
             find "$SRC_DIR" -maxdepth 1 -type f
             exit 1
           fi
 
-          cp "$APPIMAGE_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.AppImage"
           cp "$DEB_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.deb"
           cp "$RPM_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.rpm"
 
@@ -313,7 +311,6 @@ jobs:
         with:
           name: linux-packages-${{ matrix.arch }}
           path: |
-            dist_linux/*.AppImage
             dist_linux/*.deb
             dist_linux/*.rpm
           retention-days: 1
@@ -396,8 +393,7 @@ jobs:
 
             🐧 Linux 版本
             • 架构：x64 / arm64
-            • 发布格式：AppImage / deb / rpm
-            • AppImage：下载后赋予可执行权限即可运行
+            • 发布格式：deb / rpm
             • deb / rpm：适用于对应发行版的包管理器安装
             • 支持主题切换
             • 背景高斯模糊与透明度调整
@@ -462,8 +458,7 @@ jobs:
 
             🐧 Linux
             • Architectures: x64 / arm64
-            • Release formats: AppImage / deb / rpm
-            • AppImage: make it executable before running
+            • Release formats: deb / rpm
             • deb / rpm: install with the matching distro package manager
             • Theme switching support
             • Background blur & transparency adjustment

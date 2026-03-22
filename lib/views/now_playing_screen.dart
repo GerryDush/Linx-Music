@@ -315,9 +315,9 @@ class _MobileLayoutState extends State<MobileLayout>
 
     _handledLyricsSwipeInCurrentGesture = true;
     if (deltaY < 0) {
-      _showControls();
-    } else {
       _hideControls();
+    } else {
+      _showControls();
     }
   }
 

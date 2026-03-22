@@ -956,13 +956,16 @@ class _IndependentLyricLineState extends State<IndependentLyricLine>
     final bool isCurrent = widget.index == widget.currentIndex;
     final int dist = (widget.index - widget.currentIndex).abs();
 
+    double targetScale;
     double targetOpacity;
     double targetBlur;
 
     if (widget.isInteracting || _isHovered) {
+      targetScale = 1.03;
       targetOpacity = 1.0;
       targetBlur = 0.0;
     } else {
+      targetScale = 1.0;
       if (isCurrent) {
         targetOpacity = 1.0;
         targetBlur = 0.0;
@@ -990,13 +993,25 @@ class _IndependentLyricLineState extends State<IndependentLyricLine>
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: AnimatedOpacity(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: targetScale),
               duration: const Duration(milliseconds: 500),
-              opacity: targetOpacity,
-              child: ImageFiltered(
-                imageFilter:
-                    ImageFilter.blur(sigmaX: targetBlur, sigmaY: targetBlur),
-                child: widget.child,
+              curve: Curves.easeOutCubic,
+              builder: (context, scaleValue, child) {
+                return Transform.scale(
+                  scale: scaleValue,
+                  alignment: Alignment.centerLeft,
+                  child: child,
+                );
+              },
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 500),
+                opacity: targetOpacity,
+                child: ImageFiltered(
+                  imageFilter:
+                      ImageFilter.blur(sigmaX: targetBlur, sigmaY: targetBlur),
+                  child: widget.child,
+                ),
               ),
             ),
           ),
