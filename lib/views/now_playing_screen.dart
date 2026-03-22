@@ -91,7 +91,6 @@ class _ImprovedNowPlayingScreenState extends State<ImprovedNowPlayingScreen> {
                       ],
                     ),
                   ),
-                  //_buildSafeAreaMask(context),
                   SafeArea(
                     child: LayoutBuilder(builder: (context, constraints) {
                       final isNarrow = PlatformUtils.isMobileWidth(context);
@@ -142,59 +141,6 @@ class _ImprovedNowPlayingScreenState extends State<ImprovedNowPlayingScreen> {
         ));
   }
 
-  Widget _buildSafeAreaMask(BuildContext context) {
-    final padding = MediaQuery.of(context).padding;
-    final size = MediaQuery.of(context).size;
-
-    return Stack(
-      children: [
-        // 顶部遮罩
-        if (padding.top > 0)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: padding.top,
-            child: Container(
-              color: Colors.black.withOpacity(0.8),
-            ),
-          ),
-        // 底部遮罩
-        if (padding.bottom > 0)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: padding.bottom,
-            child: Container(
-              color: Colors.black.withOpacity(0.8),
-            ),
-          ),
-        // 左侧遮罩
-        if (padding.left > 0)
-          Positioned(
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: padding.left,
-            child: Container(
-              color: Colors.black.withOpacity(0.8),
-            ),
-          ),
-        // 右侧遮罩
-        if (padding.right > 0)
-          Positioned(
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: padding.right,
-            child: Container(
-              color: Colors.black.withOpacity(0.8),
-            ),
-          ),
-      ],
-    );
-  }
 
   String formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -276,7 +222,6 @@ class MobileLayout extends StatefulWidget {
 class _MobileLayoutState extends State<MobileLayout>
     with SingleTickerProviderStateMixin {
   // Padding 常量配置
-  static const double _horizontalPadding = 24.0; // 左右边距增加值
   static const double _topPaddingBase = 4.0; // 顶部基础增加值
   static const double _topPaddingMacOS = 20.0; // macOS 顶部额外增加值
   static const double _bottomPaddingBase = 20.0; // 底部基础增加值
@@ -286,12 +231,10 @@ class _MobileLayoutState extends State<MobileLayout>
   bool get _showLyrics => widget.showLyrics;
   Timer? _hideTimer;
   late AnimationController _transitionController;
-  late Animation<double> _scaleAnimation;
-  late Animation<Offset> _positionAnimation;
-  late Animation<double> _borderRadiusAnimation;
+  bool _handledLyricsSwipeInCurrentGesture = false;
 
   // 缩小后的封面尺寸
-  static const double _smallCoverSize = 56.0;
+  static const double _smallCoverSize = 66.0;
   static const double _smallCoverBorderRadius = 10.0;
   static const double _largeCoverBorderRadius = 20.0;
 
@@ -299,26 +242,11 @@ class _MobileLayoutState extends State<MobileLayout>
   void initState() {
     super.initState();
     _startHideTimer();
-
     _transitionController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
+      value: widget.showLyrics ? 1.0 : 0.0,
     );
-
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.16, // 60/375 ≈ 0.16 (从75%屏幕宽度缩小到60px)
-    ).animate(_transitionController);
-
-    _positionAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(-1.0, -1.0), // 将根据实际尺寸计算
-    ).animate(_transitionController);
-
-    _borderRadiusAnimation = Tween<double>(
-      begin: 20.0,
-      end: 12.0,
-    ).animate(_transitionController);
   }
 
   @override
@@ -349,10 +277,6 @@ class _MobileLayoutState extends State<MobileLayout>
     super.dispose();
   }
 
-  void _toggleLyrics() {
-    widget.onToggleLyrics();
-  }
-
   void _startHideTimer() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 6), () {
@@ -369,11 +293,43 @@ class _MobileLayoutState extends State<MobileLayout>
     _startHideTimer();
   }
 
+  void _hideControls() {
+    _hideTimer?.cancel();
+    if (_showLyrics && _showControlPanel) {
+      setState(() => _showControlPanel = false);
+    }
+  }
+
+  void _onLyricsVerticalDragStart() {
+    _handledLyricsSwipeInCurrentGesture = false;
+  }
+
+  void _onLyricsVerticalDragUpdate(double deltaY) {
+    if (!_showLyrics || _handledLyricsSwipeInCurrentGesture) {
+      return;
+    }
+
+    if (deltaY.abs() < 8) {
+      return;
+    }
+
+    _handledLyricsSwipeInCurrentGesture = true;
+    if (deltaY < 0) {
+      _showControls();
+    } else {
+      _hideControls();
+    }
+  }
+
+  void _onLyricsVerticalDragEnd() {
+    _handledLyricsSwipeInCurrentGesture = false;
+  }
+
   @override
   Widget build(BuildContext context) {
     // 计算 Padding 值（安全区）
-    final paddingLeft = 20.0;
-    final paddingRight = 20.0;
+    final paddingLeft = 30.0;
+    final paddingRight = 30.0;
     final paddingTop = MediaQuery.of(context).padding.top +
         _topPaddingBase +
         ((defaultTargetPlatform == TargetPlatform.macOS)
@@ -388,8 +344,8 @@ class _MobileLayoutState extends State<MobileLayout>
 
     final lyricsView = Padding(
         padding: EdgeInsets.only(
-          left: 6,
-          right: 6,
+          left: 16,
+          right: 16,
         ),
         child: KaraokeLyricsView(
           key: ValueKey('mobile_${widget.currentSong.id}'),
@@ -399,18 +355,14 @@ class _MobileLayoutState extends State<MobileLayout>
             widget.playerProvider.seekTo(time);
             _showControls();
           },
+          onVerticalDragStart: _onLyricsVerticalDragStart,
+          onVerticalDragUpdate: _onLyricsVerticalDragUpdate,
+          onVerticalDragEnd: _onLyricsVerticalDragEnd,
         ));
 
     return GestureDetector(
-      onVerticalDragUpdate: _showLyrics
-          ? (details) {
-              if (details.delta.dy > 0) {
-                _showControls();
-              }
-            }
-          : null,
-      onTap: _showLyrics ? () => _showControls() : null,
-      child: DraggableCloseContainer(
+        onTap: _showLyrics ? () => _showControls() : null,
+        child: DraggableCloseContainer(
         child: Stack(
           children: [
             // 主内容区域（带安全区 padding）
@@ -429,7 +381,7 @@ class _MobileLayoutState extends State<MobileLayout>
                             child: Padding(
                               padding: EdgeInsets.only(
                                 top: 88,
-                                bottom: _showControlPanel ? 184.0 : 8.0,
+                                bottom: _showControlPanel ? 244.0 : 8.0,
                               ),
                               child: ImageFiltered(
                                 imageFilter: ImageFilter.blur(
@@ -541,33 +493,38 @@ class _MobileLayoutState extends State<MobileLayout>
                             top: paddingTop,
                             bottom: paddingBottom,
                           ),
-                          child: IgnorePointer(
-                            ignoring: _showLyrics && !_showControlPanel,
-                            child: AnimatedOpacity(
-                              opacity: _showLyrics
-                                  ? (_showControlPanel ? 1.0 : 0.0)
-                                  : 1.0,
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SongInfoPanel(
-                                    tempSliderValue: widget.tempSliderValue,
-                                    onSliderChanged: widget.onSliderChanged,
-                                    onSliderChangeEnd: widget.onSliderChangeEnd,
-                                    playerProvider: widget.playerProvider,
-                                    compactLayout: t > 0.5,
-                                    animationProgress: t, // 传递动画进度，实现同步
+                          child: Stack(
+                            children: [
+                              IgnorePointer(
+                                ignoring: _showLyrics && !_showControlPanel,
+                                child: AnimatedOpacity(
+                                  opacity: _showLyrics
+                                      ? (_showControlPanel ? 1.0 : 0.0)
+                                      : 1.0,
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SongInfoPanel(
+                                        tempSliderValue: widget.tempSliderValue,
+                                        onSliderChanged: widget.onSliderChanged,
+                                        onSliderChangeEnd: widget.onSliderChangeEnd,
+                                        playerProvider: widget.playerProvider,
+                                        compactLayout: t > 0.5,
+                                        animationProgress: t, // 传递动画进度，实现同步
+                                      ),
+                                      const SizedBox(height: 10),
+                                      MusicControlButtons(
+                                        playerProvider: widget.playerProvider,
+                                        isPlaying: widget.isPlaying,
+                                        compactLayout: true,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
                                   ),
-                                  MusicControlButtons(
-                                    playerProvider: widget.playerProvider,
-                                    isPlaying: widget.isPlaying,
-                                    compactLayout: true,
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ],

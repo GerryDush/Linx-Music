@@ -97,7 +97,7 @@ final currentVisualRadius = lerpDouble(largeCoverBorderRadius, smallCoverBorderR
         alignment: Alignment.center,
         child: Center(
           child: AnimatedScale(
-            scale: isPlaying ? 1.0 : 0.85,
+            scale: isPlaying ? 1.0 : 0.95,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             child: AnimatedOpacity(
@@ -158,17 +158,18 @@ final currentVisualRadius = lerpDouble(largeCoverBorderRadius, smallCoverBorderR
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            SizedBox(height: 4,),
             Text(
               title,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text(
               artist ?? '未知艺术家',
               style: TextStyle(

@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-   # --- macOS 构建
-  build-macos:
+  # --- Apple 平台: macOS + iOS ---
+  build-apple:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +19,9 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
 
       - name: Install Tools
         run: |
@@ -83,6 +86,38 @@ jobs:
           path: macos_artifacts/*.dmg
           retention-days: 1
 
+      # ==========================================
+      # 2. 构建 iOS
+      # ==========================================
+      - name: Clean before iOS build
+        run: |
+          flutter clean
+          flutter pub get
+
+      - name: Build iOS (No Codesign)
+        run: |
+          # --no-codesign 允许在没有证书的情况下构建 release 包
+          flutter build ios --release --no-codesign
+
+      - name: Package iOS IPA
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          mkdir -p dist_ios
+          mkdir -p Payload
+
+          # 复制 Runner.app 到 Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+
+          # 压缩生成 IPA
+          zip -r "dist_ios/LZF-Music-$VERSION-ios.ipa" Payload
+
+      - name: Upload iOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: dist_ios/*.ipa
+          retention-days: 1
+
   # --- 桌面端: Windows ---
   build-windows:
     runs-on: windows-latest
@@ -93,6 +128,9 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
 
       - name: Install Inno Setup 6
         run: |
@@ -138,7 +176,8 @@ jobs:
           path: LZF-Music-${{ steps.get_version.outputs.version }}-windows-x64-setup.exe
           retention-days: 1
 
-  build-mobile:
+  # --- Android 平台 ---
+  build-android:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -151,6 +190,9 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
 
       - name: Get Flutter version
         id: get_version
@@ -190,36 +232,83 @@ jobs:
           path: dist_android/*.apk
           retention-days: 1
 
-      # ==========================================
-      # 2. 构建 iOS
-      # ==========================================
-      - name: Build iOS (No Codesign)
-        run: |
-          # --no-codesign 允许在没有证书的情况下构建 release 包
-          flutter build ios --release --no-codesign
+  # --- Linux 平台 ---
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Package iOS IPA
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev rpm patchelf locate
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install fastforge
+        run: dart pub global activate fastforge
+
+      - name: Get Flutter version
+        id: get_version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Prepare Linux packaging tools
+        run: |
+          sudo updatedb
+          flutter config --enable-linux-desktop
+          flutter pub get
+
+      - name: Package Linux artifacts
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          mkdir -p dist_ios
-          mkdir -p Payload
-          
-          # 复制 Runner.app 到 Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          
-          # 压缩生成 IPA
-          zip -r "dist_ios/LZF-Music-$VERSION-ios.ipa" Payload
+          mkdir -p dist_linux
 
-      - name: Upload iOS Artifacts
+          fastforge package --platform linux --targets appimage,deb,rpm
+
+          SRC_DIR="dist/$VERSION"
+          APPIMAGE_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -iname "*.appimage" | head -n 1)
+          DEB_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -name "*.deb" | head -n 1)
+          RPM_SRC=$(find "$SRC_DIR" -maxdepth 1 -type f -name "*.rpm" | head -n 1)
+
+          if [[ -z "$APPIMAGE_SRC" || -z "$DEB_SRC" || -z "$RPM_SRC" ]]; then
+            echo "Expected Linux packages were not all generated."
+            find "$SRC_DIR" -maxdepth 1 -type f
+            exit 1
+          fi
+
+          cp "$APPIMAGE_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.AppImage"
+          cp "$DEB_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.deb"
+          cp "$RPM_SRC" "dist_linux/LZF-Music-$VERSION-linux-${{ matrix.arch }}.rpm"
+
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: dist_ios/*.ipa
+          name: linux-packages-${{ matrix.arch }}
+          path: |
+            dist_linux/*.AppImage
+            dist_linux/*.deb
+            dist_linux/*.rpm
           retention-days: 1
 
   # --- 统一发布 ---
   create-release:
-    needs: [build-macos, build-windows, build-mobile]
+    needs: [build-apple, build-windows, build-android, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -239,6 +328,9 @@ jobs:
           find artifacts -name "*.exe" -exec cp {} release_files/ \;
           find artifacts -name "*.apk" -exec cp {} release_files/ \;
           find artifacts -name "*.ipa" -exec cp {} release_files/ \;
+          find artifacts -iname "*.appimage" -exec cp {} release_files/ \;
+          find artifacts -name "*.deb" -exec cp {} release_files/ \;
+          find artifacts -name "*.rpm" -exec cp {} release_files/ \;
           
           echo "Listing release files:"
           ls -R release_files/
@@ -289,6 +381,14 @@ jobs:
             • 背景播放支持
             • 支持主题切换
             • 支持小组件显示当前播放歌曲及控制
+
+            🐧 Linux 版本
+            • 架构：x64 / arm64
+            • 发布格式：AppImage / deb / rpm
+            • AppImage：下载后赋予可执行权限即可运行
+            • deb / rpm：适用于对应发行版的包管理器安装
+            • 支持主题切换
+            • 背景高斯模糊与透明度调整
 
             ✨ 更新内容
             • 支持按照添加时间排序
@@ -347,6 +447,14 @@ jobs:
             • Background playback support
             • Theme switching support
             • Home screen widget shows current track & controls
+
+            🐧 Linux
+            • Architectures: x64 / arm64
+            • Release formats: AppImage / deb / rpm
+            • AppImage: make it executable before running
+            • deb / rpm: install with the matching distro package manager
+            • Theme switching support
+            • Background blur & transparency adjustment
 
             ✨ What’s New
             • Support sorting by added time

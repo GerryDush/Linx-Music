@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:lzf_music/utils/platform_utils.dart';
 import '../services/player_provider.dart';
 import '../widgets/slider_custom.dart';
 import '../contants/app_contants.dart' show PlayMode;
@@ -165,7 +168,7 @@ class MusicControlButtons extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final showPlayModeButtons = constraints.maxWidth >= 320;
-        
+        final isMobile = PlatformUtils.isMobileWidth(context);
         return Column(
           children: [
             const SizedBox(height: 10),
@@ -265,6 +268,7 @@ class MusicControlButtons extends StatelessWidget {
               ],
             ),
             if (compactLayout) ...[
+              const SizedBox(height: 20),
             ] else ...[
               const SizedBox(height: 10),
             ],
@@ -306,6 +310,9 @@ class MusicControlButtons extends StatelessWidget {
               ),
             ],
           ),
+          if (compactLayout) ...[
+              const SizedBox(height: 20),
+            ] 
         ],
       );
     },
