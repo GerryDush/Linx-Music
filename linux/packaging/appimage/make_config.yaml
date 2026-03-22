@@ -1,0 +1,16 @@
+display_name: Linx Music
+generic_name: Music Player
+
+keywords:
+  - Music
+  - Audio
+  - Player
+
+categories:
+  - AudioVideo
+  - Audio
+  - Player
+
+startup_notify: true
+
+include: []

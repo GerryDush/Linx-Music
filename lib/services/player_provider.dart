@@ -118,7 +118,7 @@ class PlayerProvider with ChangeNotifier {
           playlist: _playlist,
           index: _playlist.indexWhere((s) => s == state.currentSong),
           shuffle: false,
-          playNow: true,
+          playNow: false,
         );
       }
       setVolume(_volume);

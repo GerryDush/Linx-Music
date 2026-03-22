@@ -22,4 +22,20 @@ class HttpService {
       rethrow;
     }
   }
+
+  Future<http.Response> postOpenCountLog({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final uri = Uri.parse('$baseUrl/rooms/linx_music_open_count/logs');
+    final body = 'platform: ${Platform.operatingSystem}, '
+        'systemVersion: ${Platform.operatingSystemVersion}, '
+        'time: ${DateTime.now().toIso8601String()}';
+
+    try {
+      final resp = await http.post(uri, body: body).timeout(timeout);
+      return resp;
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

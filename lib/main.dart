@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lzf_music/services/audio_player_service.dart';
+import 'package:lzf_music/services/http_service.dart';
 import 'package:provider/provider.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -76,6 +77,12 @@ void main() async {
         child: const MainApp(),
       ),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HttpService.instance.postOpenCountLog().catchError((e) {
+        debugPrint('open count 上报失败: $e');
+      });
+    });
 
     if (PlatformUtils.isDesktop) {
       await DesktopManager.postInitialize();

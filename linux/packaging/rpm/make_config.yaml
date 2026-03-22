@@ -1,0 +1,20 @@
+display_name: Linx Music
+url: https://github.com/GerryDush/LZF-Music
+license: Apache-2.0
+packager: GerryDush
+packagerEmail: gerrydush@users.noreply.github.com
+group: Applications/Multimedia
+
+keywords:
+  - Music
+  - Audio
+  - Player
+
+generic_name: Music Player
+
+categories:
+  - AudioVideo
+  - Audio
+  - Player
+
+startup_notify: true

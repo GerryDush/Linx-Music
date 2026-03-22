@@ -1,0 +1,30 @@
+display_name: Linx Music
+package_name: linx-music
+
+maintainer:
+  name: GerryDush
+  email: gerrydush@users.noreply.github.com
+
+priority: optional
+section: sound
+installed_size: 70000
+
+dependencies:
+  - libgtk-3-0
+  - libayatana-appindicator3-1
+
+essential: false
+
+keywords:
+  - Music
+  - Audio
+  - Player
+
+generic_name: Music Player
+
+categories:
+  - AudioVideo
+  - Audio
+  - Player
+
+startup_notify: true
