@@ -1,6 +1,9 @@
 display_name: Linx Music
+icon: android/app/src/main/res/playstore-icon.png
+summary: Elegant Flutter music player for local and private cloud libraries
 url: https://github.com/GerryDush/LZF-Music
 license: Apache-2.0
+vendor: GerryDush
 packager: GerryDush
 packagerEmail: gerrydush@users.noreply.github.com
 group: Applications/Multimedia

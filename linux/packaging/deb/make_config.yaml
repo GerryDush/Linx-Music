@@ -1,5 +1,6 @@
 display_name: Linx Music
 package_name: linx-music
+icon: android/app/src/main/res/playstore-icon.png
 
 maintainer:
   name: GerryDush
